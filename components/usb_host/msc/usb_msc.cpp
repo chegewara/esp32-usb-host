@@ -20,6 +20,32 @@ static void mock_msc_scsi_init_cbw(msc_bulk_cbw_t *cbw, bool is_read, int lun, u
     memcpy((void *)&cbw->CBWCB, cmd, 10);
 }
 
+void IRAM_ATTR usb_transfer_cb(usb_transfer_t *transfer)
+{
+    ESP_LOGW("STATUS", "status: %d, bytes: %d", transfer->status, transfer->actual_num_bytes);
+    ESP_LOG_BUFFER_HEX("HEX_DATA", transfer->data_buffer, transfer->actual_num_bytes);
+
+    USBmscDevice *dev = (USBmscDevice *)transfer->context;
+
+    if (dev && transfer->actual_num_bytes == 9 && *(uint16_t *)transfer->data_buffer == 0xfea1) // max luns
+    {
+        dev->onCSW(transfer);
+    }
+    else if (dev && transfer->actual_num_bytes == 31 && *(uint32_t *)transfer->data_buffer == 0x43425355) // CBW
+    {
+        dev->onCBW(transfer);
+    }
+    else if (dev && transfer->actual_num_bytes == 13 && *(uint32_t *)transfer->data_buffer == 0x53425355) // CSW
+    {
+        dev->onCSW(transfer);
+    }
+    else
+    {
+        dev->onData(transfer);
+        ESP_LOG_BUFFER_HEX("DATA", transfer->data_buffer, transfer->actual_num_bytes);
+    }
+}
+
 USBmscDevice *USBmscDevice::instance = nullptr;
 
 USBmscDevice *USBmscDevice::getInstance()
@@ -92,32 +118,6 @@ USBmscDevice::~USBmscDevice()
     // TODO
 }
 
-void IRAM_ATTR usb_transfer_cb(usb_transfer_t *transfer)
-{
-    ESP_LOGW("STATUS", "status: %d, bytes: %d", transfer->status, transfer->actual_num_bytes);
-    ESP_LOG_BUFFER_HEX("HEX_DATA", transfer->data_buffer, transfer->actual_num_bytes);
-
-    USBmscDevice *dev = (USBmscDevice *)transfer->context;
-
-    if (dev && transfer->actual_num_bytes == 9 && *(uint16_t *)transfer->data_buffer == 0xfea1) // max luns
-    {
-        dev->onCSW(transfer);
-    }
-    else if (dev && transfer->actual_num_bytes == 31 && *(uint32_t *)transfer->data_buffer == 0x43425355) // CBW
-    {
-        dev->onCBW(transfer);
-    }
-    else if (dev && transfer->actual_num_bytes == 13 && *(uint32_t *)transfer->data_buffer == 0x53425355) // CSW
-    {
-        dev->onCSW(transfer);
-    }
-    else
-    {
-        dev->onData(transfer);
-        ESP_LOG_BUFFER_HEX("DATA", transfer->data_buffer, transfer->actual_num_bytes);
-    }
-}
-
 esp_err_t USBmscDevice::dealocate(uint8_t _size)
 {
     esp_err_t err = ESP_OK;
@@ -153,52 +153,24 @@ esp_err_t USBmscDevice::dealocate(uint8_t _size)
     return err;
 }
 
-esp_err_t USBmscDevice::allocate(size_t _size)
-{
-    size_t out_worst_case_size = MAX(sizeof(msc_bulk_cbw_t), sizeof(usb_setup_packet_t)) + _size;
-    ESP_LOGI("", "allocate with new size: %d [%d]", _size, out_worst_case_size);
-
-    esp_err_t err = 0;
-    for (size_t i = 0; i < 2; i++)
-    {
-        err = usb_host_transfer_alloc(64, 0, &xfer_out[i]);
-        if (ESP_OK == err)
-        {
-            usb_device_handle_t handle = _host->deviceHandle();
-            xfer_out[i]->device_handle = handle;
-            xfer_out[i]->callback = usb_transfer_cb;
-            xfer_out[i]->context = this;
-        }
-    }
-
-    err = usb_host_transfer_alloc(out_worst_case_size, 0, &xfer_in);
-    xfer_in->device_handle = _host->deviceHandle();
-    xfer_in->context = this;
-    xfer_in->callback = usb_transfer_cb;
-
-    err = usb_host_transfer_alloc(out_worst_case_size, 0, &xfer_write);
-    xfer_write->device_handle = _host->deviceHandle();
-    xfer_write->callback = usb_transfer_cb;
-    xfer_write->context = this;
-
-    err = usb_host_transfer_alloc(out_worst_case_size, 0, &xfer_read);
-    xfer_read->device_handle = _host->deviceHandle();
-    xfer_read->callback = usb_transfer_cb;
-    xfer_read->context = this;
-
-    err = usb_host_transfer_alloc(64, 0, &xfer_ctrl);
-    xfer_ctrl->device_handle = _host->deviceHandle();
-    xfer_ctrl->callback = usb_transfer_cb;
-    xfer_ctrl->context = this;
-    xfer_ctrl->bEndpointAddress = 0;
-
-    return err;
-}
 
 bool USBmscDevice::init()
 {
-    if (allocate(4096))
+    if (USBhostDevice::allocate(4096))
         ESP_LOGI("", "error to allocate transfers");
+
+    xfer_out[_in]->callback = usb_transfer_cb;
+    xfer_in->callback = usb_transfer_cb;
+    xfer_read->callback = usb_transfer_cb;
+    xfer_write->callback = usb_transfer_cb;
+    xfer_ctrl->callback = usb_transfer_cb;
+
+    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
+    xfer_in->bEndpointAddress = ep_in->bEndpointAddress;
+    xfer_read->bEndpointAddress = ep_out->bEndpointAddress;
+    xfer_write->bEndpointAddress = ep_out->bEndpointAddress;
+    xfer_ctrl->bEndpointAddress = 0;
+
     _getMaxLUN();
 
     return true;
@@ -206,6 +178,7 @@ bool USBmscDevice::init()
 
 void USBmscDevice::mount(char *path, uint8_t lun)
 {
+    if(lun > _luns) return;
     const esp_vfs_fat_mount_config_t mount_config = {
         .format_if_mount_failed = false,
         .max_files = 1,
@@ -227,8 +200,6 @@ void USBmscDevice::_getMaxLUN()
     event = SCSI_CMD_MAX_LUN;
     MSC_SCSI_REQ_MAX_LUN((usb_setup_packet_t *)xfer_ctrl->data_buffer, itf_num);
     xfer_ctrl->num_bytes = sizeof(usb_setup_packet_t) + ((usb_setup_packet_t *)xfer_ctrl->data_buffer)->wLength;
-    xfer_ctrl->bEndpointAddress = 0;
-    xfer_ctrl->callback = usb_transfer_cb;
     esp_err_t err = usb_host_transfer_submit_control(_host->clientHandle(), xfer_ctrl);
 }
 
@@ -243,14 +214,12 @@ void USBmscDevice::inquiry()
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_out[_in]->data_buffer, true /*is_read*/, 0, 0x1234, (uint8_t *)&cbw, 36);
 
     xfer_out[_in]->num_bytes = sizeof(msc_bulk_cbw_t);
-    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_out[_in]->callback = usb_transfer_cb;
 
     esp_err_t err = usb_host_transfer_submit(xfer_out[_in]);
     if (err)
         ESP_LOGW("", "inquiry: 0x%02x => 0x%02x\n", err, xfer_out[_in]->bEndpointAddress);
 
-    xfer_in->callback = usb_transfer_cb; // TODO separate cb
+    // xfer_in->callback = usb_transfer_cb; // TODO separate cb
     csw();
 }
 
@@ -265,16 +234,12 @@ esp_err_t USBmscDevice::unitReady()
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_out[_in]->data_buffer, false /*is_read*/, _lun, 0x1234, (uint8_t *)&cbw, 0);
 
     xfer_out[_in]->num_bytes = sizeof(msc_bulk_cbw_t);
-    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_out[_in]->callback = usb_transfer_cb;
 
     esp_err_t err = usb_host_transfer_submit(xfer_out[_in]);
     printf("test ready: 0x%02x => 0x%02x\n", err, xfer_out[_in]->bEndpointAddress);
     // if(err)ESP_LOGW("", "test write10: 0x%02x => 0x%02x, sector: %d [%d][%d]\n", err, xfer_out[_in]->bEndpointAddress, offset, *(uint32_t*)&cbw.lba_3, __builtin_bswap32(*(uint32_t*)&cbw.lba_3));
 
     xfer_out[_in]->num_bytes = 0; // IDEA unit ready receive
-    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_out[_in]->callback = usb_transfer_cb;
     // memcpy(&xfer_out[_in]->data_buffer[0], buff, block_size[_lun]);
     err = usb_host_transfer_submit(xfer_out[_in]);
     ESP_LOGW("", "test unit ready data: 0x%02x", err);
@@ -294,8 +259,6 @@ esp_err_t USBmscDevice::unitReady()
 
         // err = usb_host_transfer_submit(xfer_write);
         // if(1) ESP_LOGE("unit ready", "CSB err: %d\n", err);
-
-        xfer_in->callback = usb_transfer_cb;
         csw();
 
         if (xTaskNotifyWait(0, 0, &pulNotificationValue, 100) == pdTRUE)
@@ -318,13 +281,11 @@ void USBmscDevice::_getCapacity(uint8_t lun)
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_out[_in]->data_buffer, true /*is_read*/, lun, 0x1234, (uint8_t *)&cbw, 8);
 
     xfer_out[_in]->num_bytes = sizeof(msc_bulk_cbw_t);
-    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_out[_in]->callback = usb_transfer_cb;
 
     esp_err_t err = usb_host_transfer_submit(xfer_out[_in]);
     if (err)
         ESP_LOGW("", "test capacity: 0x%02x => 0x%02x\n", err, xfer_out[_in]->bEndpointAddress);
-    xfer_in->callback = usb_transfer_cb;
+
     csw();
 }
 
@@ -371,8 +332,6 @@ esp_err_t USBmscDevice::_read10(uint8_t lun, int offset, int num_sectors, uint8_
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_read->data_buffer, true /*is_read*/, lun, 0x1234, (uint8_t *)&cbw, num_sectors * block_size[lun]);
 
     xfer_read->num_bytes = sizeof(msc_bulk_cbw_t);
-    xfer_read->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_read->callback = usb_transfer_cb;
 
     esp_err_t err = usb_host_transfer_submit(xfer_read);
     if (err == 0x103){
@@ -382,7 +341,6 @@ esp_err_t USBmscDevice::_read10(uint8_t lun, int offset, int num_sectors, uint8_
     }
     else
     {
-        xfer_in->callback = usb_transfer_cb;
         csw();
         xTaskToNotify = xTaskGetCurrentTaskHandle();
         uint32_t pulNotificationValue;
@@ -415,18 +373,12 @@ esp_err_t USBmscDevice::_write10(uint8_t lun, int offset, int num_sectors, uint8
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_write->data_buffer, false /*is_read*/, lun, 0x1234, (uint8_t *)&cbw, num_sectors * block_size[lun]);
 
     xfer_write->num_bytes = sizeof(msc_bulk_cbw_t); // block_size[lun] * num_sectors;
-    xfer_write->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_write->callback = usb_transfer_cb;
 
     esp_err_t err = usb_host_transfer_submit(xfer_write);
-    if (err)
-        ESP_LOGW("", "test write10: 0x%02x => 0x%02x\n", err, xfer_write->bEndpointAddress);
     if (err)
         ESP_LOGW("", "test write10: 0x%02x => 0x%02x, sector: %d [%d][%d]", err, xfer_write->bEndpointAddress, offset, *(uint32_t *)&cbw.lba_3, __builtin_bswap32(*(uint32_t *)&cbw.lba_3));
 
     xfer_read->num_bytes = block_size[_lun] * num_sectors;
-    xfer_read->bEndpointAddress = ep_out->bEndpointAddress;
-    xfer_read->callback = usb_transfer_cb;
     memcpy(&xfer_read->data_buffer[0], buff, block_size[_lun]);
 
     err = usb_host_transfer_submit(xfer_read);
@@ -465,7 +417,6 @@ void USBmscDevice::csw()
     // if(err)usb_host_transfer_free(_xfer_in);
 
     xfer_in->num_bytes = usb_host_round_up_to_mps(sizeof(msc_bulk_csw_t), block_size[0]);
-    xfer_in->bEndpointAddress = ep_in->bEndpointAddress;
 
     err = usb_host_transfer_submit(xfer_in);
     if (err)
@@ -561,11 +512,9 @@ void USBmscDevice::format()
     mock_msc_scsi_init_cbw((msc_bulk_cbw_t *)xfer_out[_in]->data_buffer, true /*is_read*/, _lun, 0x1234, (uint8_t *)&cbw, 8);
 
     xfer_out[_in]->num_bytes = sizeof(msc_bulk_cbw_t);
-    xfer_out[_in]->bEndpointAddress = ep_out->bEndpointAddress;
 
     esp_err_t err = usb_host_transfer_submit(xfer_out[_in]);
     printf("test capacity: 0x%02x => 0x%02x\n", err, xfer_out[_in]->bEndpointAddress);
-    xfer_in->callback = usb_transfer_cb;
     csw();
 }
 

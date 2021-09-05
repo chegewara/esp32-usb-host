@@ -1,5 +1,16 @@
 #pragma once
 
+#define SET_VALUE       0x21
+#define GET_VALUE       0xA1
+
+// DTR/RTS control in SET_CONTROL_LINE_STATE
+#define ENABLE_DTR(val)      (val<<0)
+#define ENABLE_RTS(val)      (val<<1)
+
+#define SET_LINE_CODING 0x20
+#define GET_LINE_CODING 0x21
+#define SET_CONTROL_LINE_STATE 0x22
+// #define SERIAL_STATE    0x20
 
 #define MSC_SCSI_REQ_INIT_RESET(setup_pkt_ptr, intf_num) ({  \
     (setup_pkt_ptr)->bmRequestType = USB_BM_REQUEST_TYPE_DIR_OUT | USB_BM_REQUEST_TYPE_TYPE_CLASS | USB_BM_REQUEST_TYPE_RECIP_INTERFACE; \
@@ -17,6 +28,33 @@
     (setup_pkt_ptr)->wLength = 1;    \
 })
 
+/**
+ * @brief 
+ *
+ */
+#define USB_CTRL_REQ_CDC_SET_LINE_CODING(ctrl_req_ptr, index, bitrate, cf, parity, bits) ({  \
+    (ctrl_req_ptr)->bmRequestType = SET_VALUE;   \
+    (ctrl_req_ptr)->bRequest = SET_LINE_CODING;  \
+    (ctrl_req_ptr)->wValue = 0;   \
+    (ctrl_req_ptr)->wIndex = (index);    \
+    (ctrl_req_ptr)->wLength = (7);   \
+})
+
+#define USB_CTRL_REQ_CDC_GET_LINE_CODING(ctrl_req_ptr, index) ({  \
+    (ctrl_req_ptr)->bmRequestType = GET_VALUE;   \
+    (ctrl_req_ptr)->bRequest = GET_LINE_CODING;  \
+    (ctrl_req_ptr)->wValue = 0;   \
+    (ctrl_req_ptr)->wIndex = (index);    \
+    (ctrl_req_ptr)->wLength = (7);   \
+})
+
+#define USB_CTRL_REQ_CDC_SET_CONTROL_LINE_STATE(ctrl_req_ptr, index, dtr, rts) ({  \
+    (ctrl_req_ptr)->bmRequestType = SET_VALUE;   \
+    (ctrl_req_ptr)->bRequest = SET_CONTROL_LINE_STATE;  \
+    (ctrl_req_ptr)->wValue = ENABLE_DTR(dtr) | ENABLE_RTS(rts);   \
+    (ctrl_req_ptr)->wIndex = (index);    \
+    (ctrl_req_ptr)->wLength = (0);   \
+})
 
 
 /// SCSI Command Operation Code
@@ -79,3 +117,11 @@ typedef struct {
     usb_transfer_cb_t max_luns_cb;
     usb_transfer_cb_t sense_cb;
 } msc_transfer_cb_t;
+
+typedef struct{
+    uint32_t dwDTERate;
+    uint8_t bCharFormat;
+    uint8_t bParityType;
+    uint8_t bDataBits;
+}line_coding_t;
+

@@ -14,11 +14,6 @@ class USBmscDevice : public USBhostDevice
 private:
     const usb_ep_desc_t * ep_in;
     const usb_ep_desc_t * ep_out;
-    usb_transfer_t *xfer_ctrl = NULL;    //Must be large enough to contain CBW and MSC reset control transfer
-    usb_transfer_t *xfer_write = NULL;    //Must be large enough to contain CBW and MSC reset control transfer
-    usb_transfer_t *xfer_read = NULL;    //Must be large enough to contain CBW and MSC reset control transfer
-    usb_transfer_t *xfer_out[2] = {};    //Must be large enough to contain CBW and MSC reset control transfer
-    usb_transfer_t *xfer_in = nullptr;     //Must be large enough to contain CSW and Data
     
     uint8_t* temp_buffer;               // pointer to buffer in read10, write10
 
