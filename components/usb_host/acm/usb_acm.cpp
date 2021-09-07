@@ -39,7 +39,7 @@ USBacmDevice::USBacmDevice(const usb_config_desc_t *config_desc, USBhost *host)
     int offset = 0;
     for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
     {
-        const usb_intf_desc_t *intf = usb_host_parse_interface(config_desc, n, 0, &offset);
+        const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config_desc, n, 0, &offset);
         const usb_ep_desc_t *ep = nullptr;
 
         if (intf->bInterfaceClass == 0x02)
@@ -47,7 +47,7 @@ USBacmDevice::USBacmDevice(const usb_config_desc_t *config_desc, USBhost *host)
             if (intf->bNumEndpoints != 1)
                 return;
             int _offset = 0;
-            ep = usb_host_parse_endpoint_by_index(intf, 0, config_desc->wTotalLength, &_offset);
+            ep = usb_parse_endpoint_descriptor_by_index(intf, 0, config_desc->wTotalLength, &_offset);
             ep_int = ep;
             ESP_LOGI("", "EP CDC comm.");
 
@@ -69,7 +69,7 @@ USBacmDevice::USBacmDevice(const usb_config_desc_t *config_desc, USBhost *host)
             for (size_t i = 0; i < intf->bNumEndpoints; i++)
             {
                 int _offset = 0;
-                ep = usb_host_parse_endpoint_by_index(intf, i, config_desc->wTotalLength, &_offset);
+                ep = usb_parse_endpoint_descriptor_by_index(intf, i, config_desc->wTotalLength, &_offset);
                 if (ep->bEndpointAddress & 0x80)
                 {
                     ep_in = ep;

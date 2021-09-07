@@ -76,7 +76,7 @@ USBmscDevice::USBmscDevice(const usb_config_desc_t *config_desc, USBhost *host)
     int offset = 0;
     for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
     {
-        const usb_intf_desc_t *intf = usb_host_parse_interface(config_desc, n, 0, &offset);
+        const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config_desc, n, 0, &offset);
         const usb_ep_desc_t *ep = nullptr;
 
         if (intf->bInterfaceClass == 0x08)
@@ -87,7 +87,7 @@ USBmscDevice::USBmscDevice(const usb_config_desc_t *config_desc, USBhost *host)
             for (size_t i = 0; i < intf->bNumEndpoints; i++)
             {
                 int _offset = 0;
-                ep = usb_host_parse_endpoint_by_index(intf, i, config_desc->wTotalLength, &_offset);
+                ep = usb_parse_endpoint_descriptor_by_index(intf, i, config_desc->wTotalLength, &_offset);
                 if (ep->bEndpointAddress & 0x80)
                 {
                     ep_in = ep;
@@ -411,12 +411,12 @@ void USBmscDevice::csw()
     // _xfer_in->context = this;
     // _xfer_in->bEndpointAddress = ep_in->bEndpointAddress;
     // _xfer_in->callback = usb_transfer_cb;
-    // _xfer_in->num_bytes = usb_host_round_up_to_mps(sizeof(msc_bulk_csw_t), block_size[0]);
+    // _xfer_in->num_bytes = usb_round_up_to_mps(sizeof(msc_bulk_csw_t), block_size[0]);
     // err = usb_host_transfer_submit(_xfer_in);
     // printf("new CSB err: %d\n", err);
     // if(err)usb_host_transfer_free(_xfer_in);
 
-    xfer_in->num_bytes = usb_host_round_up_to_mps(sizeof(msc_bulk_csw_t), block_size[0]);
+    xfer_in->num_bytes = usb_round_up_to_mps(sizeof(msc_bulk_csw_t), block_size[0]);
 
     err = usb_host_transfer_submit(xfer_in);
     if (err)

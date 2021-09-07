@@ -89,7 +89,7 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
 
         for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
         {
-            const usb_intf_desc_t *intf = usb_host_parse_interface(config_desc, n, 0, &offset);
+            const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config_desc, n, 0, &offset);
 
             if (intf->bInterfaceClass == 0x08) // MSC
             {
@@ -260,7 +260,7 @@ static void getFreeSpace(uint64_t* used_space, uint64_t* max_space)
 
     FATFS *fs;
     DWORD c;
-    if (f_getfree("/files", &c, &fs) == FR_OK)
+    if (f_getfree(MOUNT_POINT, &c, &fs) == FR_OK)
     {
         *used_space =
             ((uint64_t)fs->csize * (fs->n_fatent - 2 - fs->free_clst)) * fs->ssize;

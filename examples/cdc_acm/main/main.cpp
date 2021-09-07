@@ -57,26 +57,30 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
         host.open(event_msg);
         usb_device_info_t info = host.getDeviceInfo();
         ESP_LOGI("", "device speed: %s, device address: %d, max ep_ctrl size: %d, config: %d", info.speed ? "USB_SPEED_FULL" : "USB_SPEED_LOW", info.dev_addr, info.bMaxPacketSize0, info.bConfigurationValue);
-        const usb_config_desc_t *config_desc = host.getConfigurationDescriptor();
+        const usb_device_desc_t *dev_desc = host.getDeviceDescriptor();
         int offset = 0;
-
-        for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
+        for (size_t i = 0; i < dev_desc->bNumConfigurations; i++)
         {
-            const usb_intf_desc_t *intf = usb_host_parse_interface(config_desc, n, 0, &offset);
-
-            if (intf->bInterfaceClass == 0x0a) // CDC ACM
+            const usb_config_desc_t *config_desc = host.getConfigurationDescriptor();
+            for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
             {
-                device = new USBacmDevice(config_desc, &host);
-                n = config_desc->bNumInterfaces;
-            }
+                const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config_desc, n, 0, &offset);
+                if (intf->bInterfaceClass == 0x0a) // CDC ACM
+                {
+                    device = new USBacmDevice(config_desc, &host);
+                    n = config_desc->bNumInterfaces;
+                    if (device)
+                    {
+                        device->init();
+                        device->onEvent(callback);
+                        device->setControlLine(1, 1);
+                        device->INDATA();
+                    }
+                } 
+                
+                printf("config: %d[%d], interface: %d[%d], intf class: %d\n", i, dev_desc->bNumConfigurations, n, config_desc->bNumInterfaces, intf->bInterfaceClass);
 
-            if (device)
-            {
-                device->init();
-                device->onEvent(callback);
-                device->setControlLine(1, 1);
-                device->INDATA();
-            }
+            }            
         }
     }
     else
