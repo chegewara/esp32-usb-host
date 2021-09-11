@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include "diskio.h"
 #include <fcntl.h>
+#include "ff.h"
 
 #include "esp_err.h"
 #include "esp_log.h"
@@ -467,7 +468,7 @@ esp_err_t formatSD()
         return ESP_ERR_NO_MEM;
     }
 
-    DWORD plist[] = {100, 0, 0, 0};
+    DWORD plist[] = {20, 0};
     res = f_fdisk(0, plist, workbuf);
     if (res != FR_OK)
     {
@@ -501,6 +502,70 @@ static esp_err_t format_card_handler(httpd_req_t *req)
     isFormatting = false;
     /* Respond with an empty chunk to signal HTTP response completion */
     httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t mkdir_handler(httpd_req_t *req)
+{
+    char content[200] = {0};
+
+    /* Truncate if content length larger than the buffer */
+    size_t len = MIN(req->content_len, sizeof(content));
+
+    int ret = httpd_req_recv(req, content, len);
+    if (ret <= 0) {  /* 0 return value indicates connection closed */
+        /* Check if timeout occurred */
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+
+    char* name = strstr(content, "dirname=");
+    char path[256] = {};
+    sprintf(path, "%s", name + 8);
+    if(mkdir(path, 0755)) {
+        ESP_LOGE("", "failed to mkdir: %s", path);
+        httpd_resp_set_status(req, "409");
+        httpd_resp_send(req, NULL, 0);
+    } else {
+        httpd_resp_set_status(req, "201");
+        httpd_resp_send(req, NULL, 0);
+    }
+    /* Respond with an empty chunk to signal HTTP response completion */
+    // httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t delete_handler(httpd_req_t *req)
+{
+    char content[200] = {0};
+
+    /* Truncate if content length larger than the buffer */
+    size_t len = MIN(req->content_len, sizeof(content));
+
+    int ret = httpd_req_recv(req, content, len);
+    if (ret <= 0) {  /* 0 return value indicates connection closed */
+        /* Check if timeout occurred */
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+
+    char* name = strstr(content, "file=");
+    char path[256] = {};
+    sprintf(path, "%s", name + 5);
+    if(unlink(path)) {
+        ESP_LOGE("", "failed to unlink: %s", path);
+        httpd_resp_set_status(req, "409");
+        httpd_resp_send(req, NULL, 0);
+    } else {
+        httpd_resp_set_status(req, "201");
+        httpd_resp_send(req, NULL, 0);
+    }
+    /* Respond with an empty chunk to signal HTTP response completion */
+    // httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
 
@@ -588,4 +653,20 @@ void web_server(char* path)
         .user_ctx  = server_data    // Pass server data as context
     };
     httpd_register_uri_handler(server, &format);
+
+    httpd_uri_t _mkdir = {
+        .uri       = "/mkdir",
+        .method    = HTTP_POST,
+        .handler   = mkdir_handler,
+        .user_ctx  = server_data    // Pass server data as context
+    };
+    httpd_register_uri_handler(server, &_mkdir);
+
+    httpd_uri_t _delete = {
+        .uri       = "/delete",
+        .method    = HTTP_POST,
+        .handler   = delete_handler,
+        .user_ctx  = server_data    // Pass server data as context
+    };
+    httpd_register_uri_handler(server, &_delete);
 }

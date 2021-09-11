@@ -27,8 +27,11 @@ let myip = '192.168.4.1';
         }
     }
 
+    let current_path = '';
+
     function getfilestree(path)
     {
+        current_path = path;
         console.log(path);
         xhr.open("GET", path + '/', true);
         xhr.send();    
@@ -37,9 +40,12 @@ let myip = '192.168.4.1';
 
     function filestree(json){
         let tree = document.getElementById("filestree");
-        tree.innerHTML = "<th>Name</th><th>Type</th><th>Size</th>";
+        let _path = document.getElementById("full_path");
+        _path.innerText = current_path;
+        tree.innerHTML = "<th>Name</th><th>Type</th><th>Size</th><th>Delete</th>";
     
         console.log(json);
+        let n = 0;
         json.forEach(element => {
             let tr = document.createElement("tr");
             tr.className = 'filestree';
@@ -70,7 +76,69 @@ let myip = '192.168.4.1';
             tr.appendChild(td1);
             tr.appendChild(td2);
             tr.appendChild(td3);
+            
+
+            let btnDel = document.createElement("button");
+            btnDel.path = element.path;
+            btnDel.className = 'button black';
+            if (n > 0) {                
+                btnDel.innerText = "delete";
+                btnDel.addEventListener('click', () => {
+                    const http = new XMLHttpRequest();
+                    var params = 'file=' + element.path;
+                    var url = '/delete';
+                    http.open("POST", url, true);
+                    // Send the proper header information along with the request
+                    http.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+                
+                    http.onreadystatechange = function() {//Call a function when the state changes.
+                        if(http.readyState == 4 && http.status == 201) {
+                            console.log('element deleted', http.responseText);
+                            getfilestree(current_path);
+                        } else if (http.readyState == 4 && http.status == 409) {
+                            console.log('cant delete', element.path);
+                        }
+                    }
+                    http.send(params);
+                });
+            } else {
+                btnDel.innerText = "mkdir";
+                btnDel.addEventListener('click', () => {
+                    let dirname = prompt("New directory name");
+                    if(dirname == null || dirname == "") return;
+                    const http = new XMLHttpRequest();
+                    let sub;
+                    if (element.path.substring(element.path.length - 3, element.path.length) === '/..') {
+                        sub = element.path.substring(0, element.path.length - 2);
+                    } else {
+                        sub = element.path + '/';
+                    }
+                    var params = 'dirname=' + sub + dirname;
+                    console.log(params);
+                    var url = '/mkdir';
+                    http.open("POST", url, true);
+                    // Send the proper header information along with the request
+                    http.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+                
+                    http.onreadystatechange = function() {//Call a function when the state changes.
+                        if(http.readyState == 4 && http.status == 201) {
+                            console.log('directory created', http.responseText);
+                            getfilestree(current_path);
+                        } else if (http.readyState == 4 && http.status == 409) {
+                            alert('directory already exist');
+                        }
+                    }
+                    http.send(params);
+                });
+            }
+
+            let td4 = document.createElement("td");
+            td4.appendChild(btnDel);
+            td4.className = 'filestree1';
+            tr.appendChild(td4);
+
             tree.appendChild(tr);
+            n++;
         });
     }
     
@@ -133,6 +201,7 @@ let myip = '192.168.4.1';
         let btnwifi = document.getElementById("wifi");
         let btntree = document.getElementById("tree");
         let btnformat = document.getElementById("format");
+        let btnmkdir = document.getElementById("mkdir");
 
         // Settings fields
         let FREQ = document.querySelector("#freq1");
@@ -146,7 +215,7 @@ let myip = '192.168.4.1';
             SF.value = init_sf;
             CR.value = init_cr;           
         } catch (error) {}
-
+/*
         btnformat.onclick = function() {
             if(confirm("Do you want to format SD crad?\nIt will takes about 5 minutes!!!")){
                 spinner.display = 'block';
@@ -162,6 +231,29 @@ let myip = '192.168.4.1';
                 }
                 http.send();
             }
+        }
+*/
+        let _btnmkdir = function() {
+        // btnmkdir.onclick = function() {
+            let dirname = prompt("New directory name");
+            if(dirname == null || dirname == "") return;
+            const http = new XMLHttpRequest();
+            var params = 'dirname=' + dirname;
+            var url = '/mkdir';
+            http.open("POST", url, true);
+            // Send the proper header information along with the request
+            http.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+        
+            http.onreadystatechange = function() {//Call a function when the state changes.
+                if(http.readyState == 4 && http.status == 201) {
+                    console.log('directory created', http.responseText);
+                    getfilestree(current_path);
+                } else if (http.readyState == 4 && http.status == 409) {
+                    console.log('directory already exist', http.responseText);
+                    alert('directory already exist');
+                }
+            }
+            http.send(params);
         }
 
         btnwifi.onclick = function() {
@@ -194,9 +286,9 @@ let myip = '192.168.4.1';
         span2.onclick = function() {
             modalwifi.style.display = "none";
         }
-        span3.onclick = function() {
-            modaltree.style.display = "none";
-        }
+        // span3.onclick = function() {
+        //     modaltree.style.display = "none";
+        // }
         
         // When the user clicks anywhere outside of the modal, close it
         window.onclick = function(event) {

@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>Dreamcatcher</title>
+  <title>Remote pendrive</title>
   <script src="app.js"></script>
   <link rel="stylesheet" href="app.css">
 </head>
@@ -16,13 +16,12 @@
     <div class="connect-container">
       <span id="status"></span>
       <button id="wifi" class="button black">Setup wifi</button>
-      <button id="tree" class="button black">Files</button>
-      <button id="format" class="button black">Format</button>
+      <button id="tree" class="button black">Files tree</button>
+      <!-- <button id="format" class="button black">Format</button> -->
     </div>
 
-    <!-- </div> -->
+    <!-- 
     <div style="background-color: #216cb7; max-width: 400px;">
-      <!-- <span class="close">&times;</span> -->
       <div class="container">
         <div class="receiver" style="max-width: 400px">
           <div class="lines-header">Storage:</div>
@@ -43,7 +42,7 @@
         </div>
       </div>
     </div>
-
+-->
     <div id="myModal1" class="modal">
       <!-- Modal content -->
       <div class="modal-content" style="background-color: #216cb7;max-width: 400px;">
@@ -85,13 +84,15 @@
       </div>
     </div>
 
-    <div id="myModal2" class="modal">
+    <div id="myModal2" class="modal" >
       <!-- Modal content -->
-      <div class="modal-content" style="background-color: #216cb7">
-        <span id='close3' class="close">&times;</span>
+      <div class="modal-content" style="background-color: #216cb7; max-width: 600px; min-width: fit-content;">
         <div class="container">
           <div class="receiver" style="max-width: 400px">
-            <h2>ESP32 Files tree</h2>
+            <div>
+              <label style="font-size: large; font-weight: bold; ">Path:</label>
+                <label id='full_path' style="font-size: large; font-weight: bold;"></label>
+              </div>
             <table id='filestree' class="filestree"></table>
           </div>
         </div>
