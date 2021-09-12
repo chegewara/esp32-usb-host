@@ -107,7 +107,7 @@ extern "C" void app_main(void)
             vTaskDelay(10);
         }
 
-        vTaskDelay(100);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         device->OUTDATA((uint8_t *)"test\n", 5);
     }
 }
