@@ -42,7 +42,7 @@ USBmscDevice *USBmscDevice::getInstance()
     return instance;
 }
 
-USBmscDevice::USBmscDevice(const usb_config_desc_t *config_desc, USBhost *host)
+USBmscDevice::USBmscDevice(const usb_config_desc_t *_config_desc, USBhost *host)
 {
     esp_log_level_set("STATUS", ESP_LOG_ERROR);
     esp_log_level_set("EMIT", ESP_LOG_ERROR);
