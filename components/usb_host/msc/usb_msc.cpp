@@ -51,7 +51,7 @@ USBmscDevice::USBmscDevice(const usb_config_desc_t *config_desc, USBhost *host)
     esp_log_level_set("DATA", ESP_LOG_ERROR);
 
     _host = host;
-
+    config_desc = _config_desc;
     int offset = 0;
     for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
     {
@@ -95,7 +95,7 @@ USBmscDevice::USBmscDevice(const usb_config_desc_t *config_desc, USBhost *host)
 USBmscDevice::~USBmscDevice()
 {
     // TODO
-    deallocate(xfer_ctrl);
+    // deallocate(xfer_ctrl);
 }
 
 bool USBmscDevice::init()
@@ -119,6 +119,11 @@ bool USBmscDevice::mount(char *path, uint8_t lun)
     ESP_LOGI("", "VFS mount status: %d", err);
 
     return err == ESP_OK;
+}
+
+void USBmscDevice::unmount(char *path, uint8_t lun)
+{
+    vfs_fat_rawmsc_unmount(path, lun);
 }
 
 uint8_t USBmscDevice::getMaxLUN()

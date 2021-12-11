@@ -6,7 +6,6 @@
 #include "usb/usb_host.h"
 
 #include "usb_host.hpp"
-#include "usb_acm.hpp"
 #include "usb_msc.hpp"
 
 #include <stdio.h>
@@ -20,8 +19,10 @@
 #include <esp_vfs_fat.h>
 
 USBhost host;
-// USBhostDevice* device;
 USBmscDevice *device;
+void read_test(int t);
+void write_test();
+static void getFreeSpace(uint64_t* used_space, uint64_t* max_space);
 
 void cbw_cb(usb_transfer_t *transfer)
 {
@@ -81,7 +82,6 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
 {
     if (event_msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV)
     {
-        host.open(event_msg);
         usb_device_info_t info = host.getDeviceInfo();
         ESP_LOGI("", "device speed: %s, device address: %d, max ep_ctrl size: %d, config: %d", info.speed ? "USB_SPEED_FULL" : "USB_SPEED_LOW", info.dev_addr, info.bMaxPacketSize0, info.bConfigurationValue);
         const usb_config_desc_t *config_desc = host.getConfigurationDescriptor();
@@ -107,20 +107,22 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
                 ((USBmscDevice *)device)->registerCallbacks(cb);
                 n = config_desc->bNumInterfaces;
             }
-            else if (intf->bInterfaceClass == 0x02 || intf->bInterfaceClass == 0x0a) // CDC ACM
-            {
-                // device = new USBacmDevice(config_desc, &host);
-                n = config_desc->bNumInterfaces;
-            }
 
             if (device)
                 device->init();
 
-            // heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
-
         }
     } else {
         ESP_LOGW("", "DEVICE gone event");
+        if(device)
+        {
+            device->unmount(MOUNT_POINT, 0);
+            // device->unmount(MOUNT_POINT1, 1);
+            device->deinit();
+            delete(device);
+            is_mount = false;
+        }
+        device = NULL;
     }
 }
 
@@ -276,17 +278,20 @@ extern "C" void app_main(void)
     host.registerClientCb(client_event_callback);
     host.init();
 
-    while (!is_mount)
-    {
-        vTaskDelay(1);
-    }
+    do{
+        while (!is_mount)
+        {
+            vTaskDelay(1);
+        }
 
-    write_test();
-    read_test(0);
+        write_test();
+        read_test(0);
 
-    uint64_t used_space; 
-    uint64_t max_space;
-    getFreeSpace(&used_space, &max_space);
+        uint64_t used_space;
+        uint64_t max_space;
+        getFreeSpace(&used_space, &max_space);
 
-    ESP_LOGI("TEST", "storage used: %lld/%lld", used_space, max_space);
+        ESP_LOGI("TEST", "storage used: %lld/%lld", used_space, max_space);
+        is_mount = false;
+    }while(1);
 }

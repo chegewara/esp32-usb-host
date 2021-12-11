@@ -47,3 +47,13 @@ void USBhostDevice::onEvent(usb_host_event_cb_t _cb)
 {
     event_cb = _cb;
 }
+
+bool USBhostDevice::deinit()
+{
+    for (size_t n = 0; n < config_desc->bNumInterfaces; n++)
+    {
+        usb_host_interface_release(_host->clientHandle(), _host->deviceHandle(), n);
+    }
+
+    return true;
+}

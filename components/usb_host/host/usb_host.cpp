@@ -10,38 +10,55 @@ void _client_event_callback(const usb_host_client_event_msg_t *event_msg, void *
     USBhost *host = (USBhost *)arg;
     if (event_msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV)
     {
-        ESP_LOGI("", "client event: %d, address: %d", event_msg->event, event_msg->new_dev.address);
+        host->open(event_msg);
+        ESP_LOGI("USB_HOST_CLIENT_EVENT_NEW_DEV", "client event: %d, address: %d", event_msg->event, event_msg->new_dev.address);
         if (host->_client_event_cb)
         {
             host->_client_event_cb(event_msg, arg);
         } else {
-            host->open(event_msg);
+            
         }
+    } else {
+        ESP_LOGI("USB_HOST_CLIENT_EVENT_DEV_GONE", "client event: %d", event_msg->event);
+        if (host->_client_event_cb)
+        {
+            host->_client_event_cb(event_msg, arg);
+        }
+        host->close();
     }
 }
 
 static void client_async_seq_task(void *param)
 {
-    usb_host_client_handle_t client_hdl = *(usb_host_client_handle_t *)param;
-    uint32_t event_flags;
+    USBhost* host = (USBhost *)param;
+    printf("create async task\n");
     while (1)
     {
-        usb_host_client_handle_events(client_hdl, 1);
-
-        if (ESP_OK == usb_host_lib_handle_events(1, &event_flags))
+        usb_host_client_handle_t client_hdl = host->client_hdl;
+        uint32_t event_flags;
+        if(client_hdl)usb_host_client_handle_events(client_hdl, 1);
+        if (ESP_OK == usb_host_lib_handle_events(0, &event_flags))
         {
             if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS)
             {
                 printf("No more clients\n");
-                usb_host_device_free_all();
+                do{
+                    if(usb_host_device_free_all() != ESP_ERR_NOT_FINISHED) break;
+                }while(1);
+                usb_host_uninstall();
+                host->init(false);
             }
             if (event_flags & USB_HOST_LIB_EVENT_FLAGS_ALL_FREE)
             {
-                break;
+                printf("USB_HOST_LIB_EVENT_FLAGS_ALL_FREE\n");
+                usb_host_client_deregister(client_hdl);
+                host->client_hdl = NULL;
             }
+        } else {
+            vTaskDelay(1);
         }
     }
-    usb_host_client_deregister(client_hdl);
+    printf("delete task\n");
     vTaskDelete(NULL);
 }
 
@@ -51,7 +68,6 @@ USBhost::USBhost()
 
 USBhost::~USBhost()
 {
-    usb_host_device_close(client_hdl, dev_hdl);
 }
 
 bool USBhost::init(bool create_tasks)
@@ -63,16 +79,19 @@ bool USBhost::init(bool create_tasks)
     ESP_LOGI("", "install status: %d", err);
 
     const usb_host_client_config_t client_config = {
-        .client_event_callback = _client_event_callback,
-        .callback_arg = this,
-        .max_num_event_msg = 5};
+        .max_num_event_msg = 15,
+        .async = {
+            .client_event_callback = _client_event_callback,
+            .callback_arg = this,
+        }
+    };
 
     err = usb_host_client_register(&client_config, &client_hdl);
     ESP_LOGI("", "client register status: %d", err);
 
     if (create_tasks)
     {
-        xTaskCreate(client_async_seq_task, "async", 4 * 512, &client_hdl, 20, NULL);
+        xTaskCreate(client_async_seq_task, "async", 6 * 512, this, 5, NULL);
     }
 
     return true;
@@ -84,6 +103,11 @@ bool USBhost::open(const usb_host_client_event_msg_t *event_msg)
     parseConfig();
 
     return true;
+}
+
+void USBhost::close()
+{
+    usb_host_device_close(client_hdl, dev_hdl);
 }
 
 void USBhost::parseConfig()

@@ -54,7 +54,6 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
 {
     if (event_msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV)
     {
-        host.open(event_msg);
         usb_device_info_t info = host.getDeviceInfo();
         ESP_LOGI("", "device speed: %s, device address: %d, max ep_ctrl size: %d, config: %d", info.speed ? "USB_SPEED_FULL" : "USB_SPEED_LOW", info.dev_addr, info.bMaxPacketSize0, info.bConfigurationValue);
         const usb_device_desc_t *dev_desc = host.getDeviceDescriptor();
@@ -86,6 +85,12 @@ void client_event_callback(const usb_host_client_event_msg_t *event_msg, void *a
     else
     {
         ESP_LOGW("", "DEVICE gone event");
+        if(device)
+        {
+            device->deinit();
+            delete(device);
+        }
+        device = NULL;
     }
 }
 
@@ -95,14 +100,10 @@ extern "C" void app_main(void)
     host.registerClientCb(client_event_callback);
     host.init();
 
-    while (!device)
-    {
-        vTaskDelay(10);
-    }
 
     while (1)
     {
-        while (!device->isConnected())
+        while (!device || !device->isConnected())
         {
             vTaskDelay(10);
         }

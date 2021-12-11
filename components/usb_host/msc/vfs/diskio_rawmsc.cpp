@@ -172,3 +172,23 @@ fail:
     ff_diskio_unregister(pdrv);
     return result;
 }
+
+void vfs_fat_rawmsc_unmount(char *base_path, uint8_t lun)
+{
+    esp_vfs_fat_unregister_path(base_path);
+    uint8_t pdrv = 0xff;
+    for (size_t i = 0; i < FF_VOLUMES; i++)
+    {
+        if(ff_raw_handles[i] == lun)
+        {
+            pdrv = i;
+        }
+    }
+    
+    if(pdrv < FF_VOLUMES) 
+    {
+        ff_diskio_unregister(pdrv);
+        ff_diskio_register(pdrv, NULL);
+    }
+    printf("unregister vol. pdrv: %d\n", pdrv);
+}
