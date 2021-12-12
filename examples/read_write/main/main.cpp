@@ -48,9 +48,29 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 #define MOUNT_POINT1 "/msc1"
 char line[5000];
 bool is_mount = false;
+
+static void test(void* p)
+{
+    while (!is_mount)
+    {
+        vTaskDelay(1);
+    }
+    printf("test task\n");
+
+    uint64_t used_space;
+    uint64_t max_space;
+    getFreeSpace(&used_space, &max_space);
+
+    ESP_LOGI("TEST", "storage used: %s => %lld/%lld", MOUNT_POINT, used_space, max_space);
+    write_test();
+    read_test(0);
+
+    vTaskDelete(NULL);
+}
+
 static void capacity_cb(usb_transfer_t *transfer)
 {
-    printf("capacity_cb: block_size: %d, block_count: %d\n", device->getBlockSize(is_mount), device->getBlockCount(is_mount));
+    printf("capacity_cb: block_size: %d, block_count: %d\n", device->getBlockSize(0), device->getBlockCount(0));
 }
 
 static void inquiry_cb(usb_transfer_t *transfer)
@@ -58,9 +78,9 @@ static void inquiry_cb(usb_transfer_t *transfer)
     printf("inquiry_cb\n");
     if(!is_mount){
         device->mount(MOUNT_POINT, 0);
-        device->mount(MOUNT_POINT1, 1);
     }
     is_mount = true;
+    xTaskCreate(test, "test", 4096, NULL, 5, NULL);
 }
 
 static void unit_ready_cb(usb_transfer_t *transfer)
@@ -138,7 +158,7 @@ void read_test(int t)
         mount = MOUNT_POINT;
     } else
     {
-        f = fopen(MOUNT_POINT"/README2.txt", "r");
+        f = fopen(MOUNT_POINT"/README1.txt", "r");
         mount = MOUNT_POINT;
     }
     
@@ -259,10 +279,11 @@ void write_test()
 
 static void getFreeSpace(uint64_t* used_space, uint64_t* max_space)
 {
-
     FATFS *fs;
-    DWORD c;
-    if (f_getfree(MOUNT_POINT, &c, &fs) == FR_OK)
+    DWORD dwc;
+    char drv[4] = {};
+    device->getDrivePath(drv);
+    if (f_getfree(drv, &dwc, &fs) == FR_OK)
     {
         *used_space =
             ((uint64_t)fs->csize * (fs->n_fatent - 2 - fs->free_clst)) * fs->ssize;
@@ -271,27 +292,8 @@ static void getFreeSpace(uint64_t* used_space, uint64_t* max_space)
 }
 
 
-
 extern "C" void app_main(void)
 {
-    // heap_caps_print_heap_info(MALLOC_CAP_INTERNAL);
     host.registerClientCb(client_event_callback);
     host.init();
-
-    do{
-        while (!is_mount)
-        {
-            vTaskDelay(1);
-        }
-
-        write_test();
-        read_test(0);
-
-        uint64_t used_space;
-        uint64_t max_space;
-        getFreeSpace(&used_space, &max_space);
-
-        ESP_LOGI("TEST", "storage used: %lld/%lld", used_space, max_space);
-        is_mount = false;
-    }while(1);
 }

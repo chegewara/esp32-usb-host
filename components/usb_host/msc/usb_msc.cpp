@@ -126,6 +126,13 @@ void USBmscDevice::unmount(char *path, uint8_t lun)
     vfs_fat_rawmsc_unmount(path, lun);
 }
 
+void USBmscDevice::getDrivePath(char* path, uint8_t lun)
+{
+    uint8_t vol = ff_msc_get_pdrv_raw(lun);
+    if(vol >= 0)
+        sprintf(path, "%d:", vol);
+}
+
 uint8_t USBmscDevice::getMaxLUN()
 {
     return _luns;

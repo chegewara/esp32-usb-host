@@ -27,8 +27,7 @@ extern "C" {
 
 static const char* TAG = "msc_rawflash";
 
-uint8_t ff_raw_handles[FF_VOLUMES]; // change to lun??
-
+uint8_t ff_raw_handles[FF_VOLUMES] = {0xff};
 
 DSTATUS ff_raw_initialize (BYTE pdrv)
 {
@@ -111,15 +110,19 @@ esp_err_t ff_msc_register_raw_partition(BYTE pdrv, uint8_t lun)
 }
 
 
-// BYTE ff_msc_get_pdrv_raw(const void* part_handle)
-// {
-//     for (int i = 0; i < FF_VOLUMES; i++) {
-//         if (part_handle == ff_raw_handles[i]) {
-//             return i;
-//         }
-//     }
-//     return 0xff;
-// }
+BYTE ff_msc_get_pdrv_raw(uint8_t lun)
+{
+    int pdrv = -1;
+    for (size_t i = 0; i < FF_VOLUMES; i++)
+    {
+        if(ff_raw_handles[i] == lun)
+        {
+            pdrv = i;
+            break;
+        }
+    }
+    return pdrv;
+}
 
 esp_err_t vfs_fat_rawmsc_mount(const char* base_path,
     const esp_vfs_fat_mount_config_t* mount_config, uint8_t lun)
@@ -182,13 +185,13 @@ void vfs_fat_rawmsc_unmount(char *base_path, uint8_t lun)
         if(ff_raw_handles[i] == lun)
         {
             pdrv = i;
+            ff_raw_handles[i] = 0xff;
+            break;
         }
     }
     
     if(pdrv < FF_VOLUMES) 
     {
         ff_diskio_unregister(pdrv);
-        ff_diskio_register(pdrv, NULL);
     }
-    printf("unregister vol. pdrv: %d\n", pdrv);
 }

@@ -91,7 +91,7 @@ bool USBhost::init(bool create_tasks)
 
     if (create_tasks)
     {
-        xTaskCreate(client_async_seq_task, "async", 6 * 512, this, 5, NULL);
+        xTaskCreate(client_async_seq_task, "async", 6 * 512, this, 20, NULL);
     }
 
     return true;

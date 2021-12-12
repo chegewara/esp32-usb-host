@@ -35,7 +35,8 @@ public:
 
     bool            init();
     bool            mount(char*, uint8_t lun = 0);
-    void            unmount(char *path, uint8_t lun);
+    void            unmount(char *path, uint8_t lun = 0);
+    void            getDrivePath(char* path, uint8_t lun = 0);
     uint8_t         getMaxLUN();
     uint32_t        getBlockCount(uint8_t lun = 0);
     uint16_t        getBlockSize(uint8_t lun = 0);
