@@ -128,7 +128,7 @@ void USBmscDevice::unmount(char *path, uint8_t lun)
 
 void USBmscDevice::getDrivePath(char* path, uint8_t lun)
 {
-    uint8_t vol = ff_msc_get_pdrv_raw(lun);
+    int8_t vol = ff_msc_get_pdrv_raw(lun);
     if(vol >= 0)
         sprintf(path, "%d:", vol);
 }

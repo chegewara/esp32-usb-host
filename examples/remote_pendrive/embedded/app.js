@@ -4,7 +4,7 @@ let myip = '192.168.4.1';
     'use strict';
 
     // fake data for simulating files tree in case sd card is not connected and/or server returns error 404
-    let files_tree_json = [{"path":"/files", "dir":1,"name":"Refresh", "size":"0"}, {"path":"/files/2020-07-29-19-26-18.004-VBoxSVC-57597.log", "dir":0,"name":"2020-07-29-19-26-18.004-VBoxSVC-57597.log", "size":"237"}, {"path":"/files/tmp", "dir":1,"name":"tmp", "size":"0"}, {"path":"/files/test path", "dir":1,"name":"test path", "size":"0"}, {"path":"/files/test3.py", "dir":0,"name":"test3.py", "size":"120570"}, {"path":"/files/test5.py", "dir":0,"name":"test5.py", "size":"120570"}, {"path":"/files/test7.py", "dir":0,"name":"test7.py", "size":"120570"}, {"path":"/files/test.py", "dir":0,"name":"test.py", "size":"120570"}, {"path":"/files/test4.py", "dir":0,"name":"test4.py", "size":"120570"}, {"path":"/files/test6.py", "dir":0,"name":"test6.py", "size":"120570"}, {"path":"/files/test8.py", "dir":0,"name":"test8.py", "size":"120570"}, {"path":"/files/opaks", "dir":1,"name":"opaks", "size":"0"}, {"path":"/files/test9.py", "dir":0,"name":"test9.py", "size":"120570"}, {"path":"/files/tinyxml2.h", "dir":0,"name":"tinyxml2.h", "size":"56710"}, {"path":"/files/test1.py", "dir":0,"name":"test1.py", "size":"120570"}, {"path":"/files/test2.py", "dir":0,"name":"test2.py", "size":"120570"}];
+    let files_tree_json = [{"path":"/files", "dir":1,"name":"Refresh", "size":"0"}];
 
     const xhr = new XMLHttpRequest();
     xhr.responseType = "json";
@@ -24,6 +24,7 @@ let myip = '192.168.4.1';
         if (this.readyState === XMLHttpRequest.DONE && this.status === 404) {
             // Request finished. Do processing here.
             filestree(files_tree_json);
+            alert("Thumbdrive not found");
         }
     }
 

@@ -37,11 +37,11 @@ static void client_async_seq_task(void *param)
         usb_host_client_handle_t client_hdl = host->client_hdl;
         uint32_t event_flags;
         if(client_hdl)usb_host_client_handle_events(client_hdl, 1);
-        if (ESP_OK == usb_host_lib_handle_events(0, &event_flags))
+        if (ESP_OK == usb_host_lib_handle_events(1, &event_flags))
         {
             if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS)
             {
-                printf("No more clients\n");
+                ESP_LOGD("", "No more clients\n");
                 do{
                     if(usb_host_device_free_all() != ESP_ERR_NOT_FINISHED) break;
                 }while(1);
@@ -50,12 +50,10 @@ static void client_async_seq_task(void *param)
             }
             if (event_flags & USB_HOST_LIB_EVENT_FLAGS_ALL_FREE)
             {
-                printf("USB_HOST_LIB_EVENT_FLAGS_ALL_FREE\n");
+                ESP_LOGD("", "USB_HOST_LIB_EVENT_FLAGS_ALL_FREE\n");
                 usb_host_client_deregister(client_hdl);
                 host->client_hdl = NULL;
             }
-        } else {
-            vTaskDelay(1);
         }
     }
     printf("delete task\n");

@@ -178,7 +178,6 @@ fail:
 
 void vfs_fat_rawmsc_unmount(char *base_path, uint8_t lun)
 {
-    esp_vfs_fat_unregister_path(base_path);
     uint8_t pdrv = 0xff;
     for (size_t i = 0; i < FF_VOLUMES; i++)
     {
@@ -192,6 +191,10 @@ void vfs_fat_rawmsc_unmount(char *base_path, uint8_t lun)
     
     if(pdrv < FF_VOLUMES) 
     {
+        char drv[3] = {(char)('0' + pdrv), ':', 0};
+        esp_vfs_fat_unregister_path(base_path);
+        f_mount(0, drv, 0);
         ff_diskio_unregister(pdrv);
+        ESP_LOGI(TAG, "unregister path: %s, volume pdrv: %s", base_path, drv);
     }
 }
